@@ -76,13 +76,13 @@ services:
       - ./image-service/models:/root/.cache/huggingface
     # ── 要用 GPU：先修好主機 nvidia 驅動（nvidia-smi 正常）+ 裝 nvidia-container-toolkit，
     #    再取消下面註解（沒 GPU 時服務會自動退回 CPU，不需這段）──
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     # 內網服務，不對外；backend 以 http://image:9003 呼叫
     logging:
       driver: json-file

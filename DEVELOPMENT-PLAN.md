@@ -63,9 +63,10 @@
 - [x] 後端 `services/image_client.py` + `agents/image_agent.py`（**LLM 翻譯優化中文→英文提示詞** → 生圖）+ `routers/image.py`（`POST /api/image`）
 - [x] 前端：輸入列「生成圖片」鈕 → 顯示圖片 + 下載 + 可展開英文提示詞
 - [x] compose 新增 `image` service（GPU passthrough 註解備用）+ `build.sh` 加 image image
+- [x] **對話式微調（img2img 迴圈）**：以上一張生成圖為起點、用文字修改指令重繪（見下方「img2img 微調」）
 
 ### 增強 backlog（隨時可做，非里程碑）
-- [ ] 文生圖：可調 steps/尺寸/negative prompt/seed（目前用預設）
+- [ ] 文生圖：可調 steps/尺寸/negative prompt/seed（目前用預設；img2img 的 strength 可再開放 UI 調整）
 - [ ] 長文字朗讀延遲：句子級串流（切句、逐句先播）—— 主要對離線 MeloTTS fallback 有感
 - [ ] 統一入口：讓 `chat_agent` 自行判斷多模態需求並分流（目前各模態走各自 `/api/*`）
 - [ ] OCR 結果串流整理（目前 `/api/ocr` 為同步回傳）
@@ -173,6 +174,8 @@
 **流程**：輸入列按「生成圖片」→ `POST /api/image {prompt}` → `image_agent`：
 `translate node`（LLM 中文→英文提示詞）→ `generate node`（呼叫 `image-service`）→ 回 `{prompt_en, image(base64 dataURL)}` → 前端顯示圖片 + 下載 + 可展開英文提示詞。
 
+> **操作方式（不是一般問答）**：生成圖片與文字問答共用同一輸入框，但走**專屬的「生成圖片」按鈕**（輸入框旁，非 Enter/送出鍵 — 按送出會變成問 LLM）。在框內輸入描述（**中文即可**）→ 點「生成圖片」鈕即生圖。前端條件 `canGenImage = 沒在載入 && 沒上傳圖片 && 輸入框有文字`（有上傳圖片時該鈕停用，避免與 OCR 混淆）。**前提**：需先在設定頁註冊好 LLM provider（中間翻譯提示詞要用），否則回 400「尚未設定 LLM provider」。
+
 **已建檔案**
 - [x] `image-service/`：`api.py`（FastAPI + diffusers SD1.5，`POST /generate` 回 PNG，埠 9003，自動 GPU/CPU）、`requirements.txt`。
 - [x] `Dockerfile.image`（root；預設 CUDA 版 torch，GPU 修好即可用，沒 GPU 自動 CPU）。
@@ -182,7 +185,26 @@
 
 **M4 驗收**：輸入中文描述按「生成圖片」→ 得到一張圖（可下載、可看 LLM 產生的英文提示詞）。
 
-> ⚠️ 最重的一關：SD image 很大、首次啟動下載模型(~4GB)；**CPU 生圖很慢**（一張數十秒~數分鐘）。GPU：修好主機 nvidia 驅動 + 裝 nvidia-container-toolkit + 取消 compose 的 `deploy.devices` 註解即可加速。
+> ⚠️ 最重的一關：SD image 很大、首次啟動下載模型(~4GB)；**CPU 生圖很慢**（一張數十秒~數分鐘）。
+>
+> **✅ 已切換至 GPU 執行（2026-07-13）**：主機 nvidia 驅動（RTX 3060, driver 580）+ nvidia-container-toolkit(1.19) 已就緒，docker nvidia runtime 已註冊，`docker-compose.yaml` 的 `deploy.resources.devices` GPU 區塊為**啟用狀態**（非註解）。`api.py` 自動偵測 CUDA → 用 `float16` 上 GPU，`/health` 回 `{"device":"cuda"}`。一張 512×512／30 steps 約 1~3 秒。**不需任何 Hugging Face 帳號/token**（SD1.5 為公開模型，匿名下載）。模型快取在 `image-service/models/`，之後重啟不再下載。
+
+#### M4 增強 — img2img 對話式微調（2026-07-13）
+
+**目標**：「透過問答修正圖片」。第一句生新圖後，之後每句話都在**同一張圖上迭代微調**（保留原構圖，只套用修改）。
+
+**機制**：txt2img 從純雜訊畫全新圖；img2img 則以**上一張圖為起點**，依 `strength`（0~1，越小越保留原圖，預設 0.5）局部重繪。狀態由**前端攜帶**（每則生成圖訊息存自己的 `genImage` + `promptEn`），後端維持無狀態、不需 DB／session；新圖又成為下次微調的起點 → 鏈式迭代。
+
+**流程**：輸入修改指令（中文）→ 前端「微調」鈕（🪄 Wand2）→ `POST /api/image/refine {edit_instruction, init_image(上一張 dataURL), prev_prompt_en}` → `image_agent`（`mode=refine`）：`translate node`（LLM **合併**上一輪英文提示詞 + 這次修改指令 → 新英文提示詞）→ `generate node`（`image_client.img2img` 帶上一張圖）→ 回 `{prompt_en, image}`。
+
+**改動檔案**
+- `image-service/api.py`：`StableDiffusionImg2ImgPipeline`（`**_get_pipe().components` 共用權重、不重複載入）+ `POST /img2img`（收 base64 init image、`strength`）。
+- `backend/services/image_client.py`：`img2img(prompt, init_image_bytes, strength)`。
+- `backend/agents/image_agent.py`：`ImageState` 加 `mode/edit_instruction/prev_prompt_en/init_image/strength`；translate/generate node 依 `mode` 分流。
+- `backend/routers/image.py`：`POST /api/image/refine`（`RefineIn`；解 data URL → bytes）。
+- `frontend/src/pages/ChatPage.tsx`：`refineImage()` + 「微調」鈕（`canRefine = 沒在載入 && 沒上傳圖片 && 有輸入 && 對話中已有生成圖`）。
+
+**前提**：同 `/api/image`，需先設定 LLM provider（合併提示詞要用）。改完重建：`docker compose up -d --build image backend frontend`。
 
 ### ⏳ 其他（視需求）
 - Skill 設計（`skill-design.md`）：把可重用能力（如 OCR 流程）包成 `backend/skills/<name>/SKILL.md`。

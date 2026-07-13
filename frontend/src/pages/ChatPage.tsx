@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, Sparkles, UploadCloud, X, Volume2, ImagePlus, Download } from "lucide-react";
+import { Send, Loader2, Sparkles, UploadCloud, X, Volume2, ImagePlus, Wand2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -211,8 +211,50 @@ export function ChatPage() {
     }
   }
 
+  async function refineImage() {
+    if (loading || image) return;
+    const text = input.trim();
+    if (!text) return;
+    // 找最近一張生成圖，當作 img2img 的起點（鏈式：新圖又能被下次微調）
+    const last = [...messages].reverse().find((m) => m.genImage);
+    if (!last?.genImage) {
+      toast.error("目前沒有可微調的圖片，請先生成一張");
+      return;
+    }
+    const history = messages;
+    setMessages([...history, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    setInput("");
+    setBusyLabel("微調圖片中…（img2img，以上一張圖為起點）");
+    setLoading(true);
+    try {
+      const res = await api.post<{ prompt_en: string; image: string }>("/image/refine", {
+        edit_instruction: text,
+        init_image: last.genImage,
+        prev_prompt_en: last.promptEn ?? "",
+      });
+      setMessages((m) => {
+        const next = [...m];
+        next[next.length - 1] = {
+          role: "assistant",
+          content: "",
+          genImage: res.image,
+          promptEn: res.prompt_en,
+        };
+        return next;
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
+      setMessages(history);
+      setInput(text);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const canSend = !loading && (!!input.trim() || !!image);
   const canGenImage = !loading && !image && !!input.trim();
+  const hasGenImage = messages.some((m) => !!m.genImage);
+  const canRefine = !loading && !image && !!input.trim() && hasGenImage;
 
   return (
     <div className="animate-fade-up mx-auto flex h-[calc(100vh-8rem)] w-full max-w-5xl flex-col">
@@ -389,6 +431,16 @@ export function ChatPage() {
             title="用文字生成圖片"
           >
             <ImagePlus strokeWidth={1.75} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refineImage}
+            disabled={!canRefine}
+            aria-label="微調上一張生成圖"
+            title="微調上一張生成圖（以文字修改，保留原構圖）"
+          >
+            <Wand2 strokeWidth={1.75} />
           </Button>
           <Textarea
             value={input}

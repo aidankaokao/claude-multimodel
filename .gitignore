@@ -17,3 +17,4 @@ models--bert-base-multilingual-uncased/
 
 # Hugging Face model cache
 tts-service/models/hub/
+image-service/models/hub/

@@ -29,7 +29,7 @@
 - **✅ M1**：文字問答打底 + LLM Provider 設定頁（全鏈路跑通）；問答支援**串流逐字輸出**（`/api/chat/stream`）與**Markdown 渲染**。
 - **✅ M2**：圖片 OCR（PaddleOCR 繁中，獨立容器 `ocr-service/`）→ `/api/ocr` → `ocr_agent`（辨識後自動交 LLM 整理）；前端聊天頁可上傳圖片。
 - **✅ M3**：文字轉語音（獨立容器 `tts-service/`，**混合：線上 edge-tts 為主 + 離線 MeloTTS 備援**）→ `/api/tts`；前端 🔊 播放鈕 + 語音可切（台/陸、男/女）。
-- **✅ M4**：文字轉圖片（獨立容器 `image-service/`，**SD 1.5，自動 GPU/CPU**）→ `/api/image`；`image_agent` 先用 LLM 把中文提示詞翻成英文再生圖；前端「生成圖片」鈕。
+- **✅ M4**：文字轉圖片（獨立容器 `image-service/`，**SD 1.5，自動 GPU/CPU；本機已跑 GPU**）→ `/api/image`；`image_agent` 先用 LLM 把中文提示詞翻成英文再生圖；前端「生成圖片」鈕。**＋img2img 對話式微調**（🪄「微調」鈕 → `/api/image/refine`，以上一張圖為起點依文字修改重繪、鏈式迭代）。
 - **四種多模態皆完成**。後續見 `DEVELOPMENT-PLAN.md` 的增強 backlog。
 - **進度／To-Do 清單**：見 `DEVELOPMENT-PLAN.md` 的「進度總覽（To-Do）」段（勾選狀態即進度）。
 
