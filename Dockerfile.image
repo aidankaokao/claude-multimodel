@@ -1,0 +1,21 @@
+# 文生圖服務 image（diffusers + Stable Diffusion 1.5）。build context 為專案根。容器內埠 9003。
+# 較大：預設 torch 為 CUDA 版（有 GPU 就能用，沒 GPU 自動退回 CPU）。首次啟動下載 SD 模型(~4GB)。
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY image-service/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY image-service/ /app/image-service/
+
+WORKDIR /app/image-service
+
+EXPOSE 9003
+
+CMD ["python", "api.py"]
+
+# ── 純 CPU 想要輕量 image（省去 CUDA 套件）時，改用 CPU 版 torch：把上面 requirements 的 torch 拿掉，
+#    並在 pip install 後加一行：
+#    RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+#    （但這樣就無法用 GPU；本專案預設保留 CUDA 版以便 GPU 修好後直接可用。）

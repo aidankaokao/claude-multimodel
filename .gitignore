@@ -1,0 +1,19 @@
+# 部署層與應用層 .env 都不進版控（各留 .env.example）
+.env
+backend/.env
+frontend/.env
+
+# 依賴 / 產物
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+
+# SQLite 資料
+backend/data/*.db
+backend/data/*.sqlite*
+models--bert-base-multilingual-uncased/
+
+# Hugging Face model cache
+tts-service/models/hub/

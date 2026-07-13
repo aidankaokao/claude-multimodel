@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+.venv/
+models/          # PaddleOCR 下載的模型快取（掛 volume），不進版控

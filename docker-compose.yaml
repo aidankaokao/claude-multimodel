@@ -1,0 +1,114 @@
+services:
+  backend:
+    image: ${IMAGE_PREFIX}-backend:${IMAGE_TAG}   # 命名走 .env（見 build.sh），不寫 build:
+    container_name: ${IMAGE_PREFIX}-backend
+    env_file: backend/.env                   # 後端應用層 env（DB / LLM）
+    environment:
+      # 覆寫 backend/.env 的 dev 值：容器內走內網呼叫各推論服務（service 名 ocr / tts / image）
+      - OCR_BASE_URL=http://ocr:9001
+      - TTS_BASE_URL=http://tts:9002
+      - IMAGE_BASE_URL=http://image:9003
+    volumes:
+      - ./backend/data:/app/backend/data     # SQLite 檔 / 產出（見 database.md）
+    # ── 後端對外 port：開發期打開查看，上線時整段註解掉不對外 ──
+    # ports:
+    #   - "${BACKEND_PORT}:8000"             # 容器內固定 8000（api.py 寫死），對外走 .env
+    depends_on:
+      - ocr
+      - tts
+      - image
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "developer=${DEVELOPER_NAME}"
+      - "project.path=${PROJECT_PATH}"
+    restart: unless-stopped
+
+  ocr:
+    image: ${IMAGE_PREFIX}-ocr:${IMAGE_TAG}   # M2 圖片 OCR（PaddleOCR，獨立推論服務）
+    container_name: ${IMAGE_PREFIX}-ocr
+    environment:
+      - OCR_LANG=chinese_cht                  # 繁中為主
+    volumes:
+      # 快取下載的 OCR 模型，避免每次重啟重新下載
+      - ./ocr-service/models:/root/.paddleocr
+    # 內網服務，不對外；backend 以 http://ocr:9001 呼叫
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "developer=${DEVELOPER_NAME}"
+      - "project.path=${PROJECT_PATH}"
+    restart: unless-stopped
+
+  tts:
+    image: ${IMAGE_PREFIX}-tts:${IMAGE_TAG}   # M3 文字轉語音（混合：線上 edge-tts 為主 + 離線 MeloTTS 備援）
+    container_name: ${IMAGE_PREFIX}-tts
+    environment:
+      - TTS_VOICE=zh-TW-HsiaoChenNeural       # edge-tts 預設語音（前端可切）；需容器能連外網
+      - TTS_LANGUAGE=ZH                       # 離線 MeloTTS fallback 用（ZH 中英混讀、大陸腔）
+    volumes:
+      # 快取下載的 MeloTTS 模型（HF cache），避免每次重啟重新下載
+      - ./tts-service/models:/root/.cache/huggingface
+    # 內網服務，不對外；backend 以 http://tts:9002 呼叫。注意：edge-tts 需容器可連外網。
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "developer=${DEVELOPER_NAME}"
+      - "project.path=${PROJECT_PATH}"
+    restart: unless-stopped
+
+  image:
+    image: ${IMAGE_PREFIX}-image:${IMAGE_TAG}   # M4 文生圖（Stable Diffusion 1.5，自動偵測 GPU/CPU）
+    container_name: ${IMAGE_PREFIX}-image
+    environment:
+      - SD_MODEL=stable-diffusion-v1-5/stable-diffusion-v1-5
+    volumes:
+      # 快取下載的 SD 模型（HF cache，~4GB），避免每次重啟重新下載
+      - ./image-service/models:/root/.cache/huggingface
+    # ── 要用 GPU：先修好主機 nvidia 驅動（nvidia-smi 正常）+ 裝 nvidia-container-toolkit，
+    #    再取消下面註解（沒 GPU 時服務會自動退回 CPU，不需這段）──
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    # 內網服務，不對外；backend 以 http://image:9003 呼叫
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "developer=${DEVELOPER_NAME}"
+      - "project.path=${PROJECT_PATH}"
+    restart: unless-stopped
+
+  frontend:
+    image: ${IMAGE_PREFIX}-frontend:${IMAGE_TAG}  # 命名走 .env
+    container_name: ${IMAGE_PREFIX}-frontend
+    environment:
+      - APP_ROUTE=${APP_ROUTE}               # nginx.conf.template envsubst 用（把前端掛在 /<route>/）
+    ports:
+      - "${FRONTEND_PORT}:80"                # 對外 FRONTEND_PORT → 容器 80；實際入口 /<APP_ROUTE>/
+    depends_on:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "developer=${DEVELOPER_NAME}"
+      - "project.path=${PROJECT_PATH}"
+    restart: unless-stopped

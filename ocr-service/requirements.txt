@@ -1,0 +1,9 @@
+# OCR 服務依賴（開源）。Python 3.11。PaddleOCR CPU 版。
+# 注意：paddlepaddle / paddleocr 較大，首次 build 會下載大量套件與模型。
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+pillow>=10
+numpy>=1.24,<2
+paddleocr==2.7.3
+paddlepaddle==2.6.2      # 2.6.1 已從 PyPI 下架；2.6.2 為 2.x 線最低可用版，與 paddleocr 2.7.3 相容

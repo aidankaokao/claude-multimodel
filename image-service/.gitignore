@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+.venv/
+models/          # 下載的 SD 模型（HF cache，掛 volume），不進版控

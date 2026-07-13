@@ -1,0 +1,11 @@
+# 文生圖服務依賴（開源）。Python 3.11。Stable Diffusion 1.5 via diffusers。
+# 預設 torch 從 PyPI 安裝＝CUDA 版（有 GPU 就能用；沒 GPU 時自動退回 CPU 執行）。
+# 若確定「純 CPU、想要輕量 image」，可在 Dockerfile.image 改裝 CPU 版 torch。
+torch>=2.1
+diffusers>=0.27
+transformers>=4.38
+accelerate>=0.27
+safetensors>=0.4
+pillow>=10
+fastapi>=0.110
+uvicorn[standard]>=0.29

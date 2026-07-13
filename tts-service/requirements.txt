@@ -1,0 +1,6 @@
+# TTS 服務依賴（開源）。Python 3.11。MeloTTS（MIT）。
+# torch(CPU) 與 MeloTTS 本體較特殊，改在 Dockerfile.tts 內分步安裝（CPU 版 torch + GitHub 安裝 melo）。
+# 這裡只放輕量的 web 相依；本機 dev 安裝方式見 DEVELOPMENT-PLAN.md。
+fastapi>=0.110
+uvicorn[standard]>=0.29
+edge-tts>=6.1          # 線上免費語音（主用）；純 python，需容器可連外網

@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.venv/
+models/          # 下載的 MeloTTS 模型（HF cache，掛 volume），不進版控
+voices/          # 舊 Piper 語音檔（若曾產生），不進版控

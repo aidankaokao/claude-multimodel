@@ -1,0 +1,1 @@
+# SQLite 檔 / 執行期產物放這（容器掛 volume，見 deploy-guide.md）。此檔僅為保留空目錄。

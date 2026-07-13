@@ -1,0 +1,22 @@
+# OCR 推論服務 image。build context 為專案根（COPY ocr-service/...）。
+# PaddleOCR 需要 opencv 的系統庫（libgl1 / libglib2.0-0）。容器內埠 9001。
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# PaddleOCR / opencv / paddlepaddle 執行期需要的系統庫
+#   libgl1, libglib2.0-0 → opencv；libgomp1 → paddlepaddle 的 OpenMP 執行庫（libgomp.so.1）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 libglib2.0-0 libgomp1 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY ocr-service/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY ocr-service/ /app/ocr-service/
+
+WORKDIR /app/ocr-service
+
+EXPOSE 9001
+
+CMD ["python", "api.py"]
